@@ -138,23 +138,25 @@ export default function PdfEditor({
   }
 
   return (
-    <div className="flex-1 overflow-auto bg-gray-100 p-8 flex flex-col items-center gap-8">
+    <div className="flex-1 overflow-auto bg-gray-100 p-2 md:p-8">
       <style>{customStyles}</style>
-      {Array.from({ length: numPages }, (_, index) => (
-        <PdfPage 
-          key={index} 
-          pageIndex={index} 
-          pdfDoc={pdfDoc} 
-          annotations={annotations.filter(a => a.pageIndex === index)}
-          setAnnotations={setAnnotations}
-          whiteouts={whiteouts.filter(w => w.pageIndex === index)}
-          setWhiteouts={setWhiteouts}
-          imageAnnotations={imageAnnotations.filter(i => i.pageIndex === index)}
-          setImageAnnotations={setImageAnnotations}
-          updateAnnotationPosition={updateAnnotationPosition}
-          updateImageDataUrl={updateImageDataUrl}
-        />
-      ))}
+      <div className="flex flex-col gap-4 md:gap-8 w-max mx-auto">
+        {Array.from({ length: numPages }, (_, index) => (
+          <PdfPage 
+            key={index} 
+            pageIndex={index} 
+            pdfDoc={pdfDoc} 
+            annotations={annotations.filter(a => a.pageIndex === index)}
+            setAnnotations={setAnnotations}
+            whiteouts={whiteouts.filter(w => w.pageIndex === index)}
+            setWhiteouts={setWhiteouts}
+            imageAnnotations={imageAnnotations.filter(i => i.pageIndex === index)}
+            setImageAnnotations={setImageAnnotations}
+            updateAnnotationPosition={updateAnnotationPosition}
+            updateImageDataUrl={updateImageDataUrl}
+          />
+        ))}
+      </div>
     </div>
   );
 }

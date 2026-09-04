@@ -296,14 +296,14 @@ export default function App() {
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans text-slate-900">
       {/* Header */}
-      <header className="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between sticky top-0 z-10">
-        <div className="flex items-center gap-5">
+      <header className="bg-white border-b border-slate-200 px-4 md:px-6 py-3 md:py-4 flex flex-col md:flex-row items-center justify-between sticky top-0 z-10 gap-3 md:gap-0">
+        <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 md:gap-5 w-full md:w-auto">
           <div className="flex items-center gap-2 text-blue-600">
-            <FileEdit className="w-6 h-6" />
-            <h1 className="text-xl font-bold tracking-tight">심플 PDF 에디터</h1>
+            <FileEdit className="w-5 h-5 md:w-6 md:h-6" />
+            <h1 className="text-lg md:text-xl font-bold tracking-tight">심플 PDF 에디터</h1>
           </div>
           
-          <div className="h-5 w-px bg-slate-200"></div>
+          <div className="hidden md:block h-5 w-px bg-slate-200"></div>
 
           <a 
             href="https://www.jyelabs.com" 
@@ -321,29 +321,29 @@ export default function App() {
         </div>
         
         {file && (
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2 bg-slate-100 px-3 py-1.5 rounded-md border border-slate-200 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500 transition-all">
-              <span className="text-sm text-slate-500">파일명:</span>
+          <div className="flex items-stretch md:items-center gap-2 md:gap-4 w-full md:w-auto">
+            <div className="flex items-center gap-2 bg-slate-100 px-3 py-1.5 rounded-md border border-slate-200 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500 transition-all flex-1 md:flex-none">
+              <span className="text-xs md:text-sm text-slate-500 hidden sm:inline whitespace-nowrap">파일명:</span>
               <input 
                 type="text" 
                 value={fileName}
                 onChange={(e) => setFileName(e.target.value)}
-                className="bg-transparent border-none outline-none text-sm font-medium text-slate-700 w-48"
+                className="bg-transparent border-none outline-none text-sm font-medium text-slate-700 w-full min-w-[50px] md:w-48"
                 placeholder="저장할 파일명"
               />
-              <span className="text-sm text-slate-500">.pdf</span>
+              <span className="text-xs md:text-sm text-slate-500">.pdf</span>
             </div>
             
             <button 
               onClick={exportPdf}
-              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors shadow-sm"
+              className="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-3 md:px-4 py-2 rounded-lg font-medium transition-colors shadow-sm whitespace-nowrap text-sm md:text-base flex-shrink-0"
             >
               <Download className="w-4 h-4" />
-              다운로드
+              <span className="hidden sm:inline">다운로드</span>
             </button>
             <button 
               onClick={() => setFile(null)}
-              className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+              className="flex items-center justify-center p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors flex-shrink-0"
               title="닫기"
             >
               <X className="w-5 h-5" />
@@ -383,29 +383,33 @@ export default function App() {
             </div>
           </div>
         ) : (
-          <div className="flex-1 flex">
+          <div className="flex-1 flex flex-col md:flex-row overflow-hidden relative">
             {/* Toolbar */}
-            <div className="w-64 bg-white border-r border-slate-200 p-4 flex flex-col gap-4 shadow-[1px_0_10px_rgba(0,0,0,0.02)] z-10">
-              <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-2">도구</h3>
-              <button 
-                onClick={addTextAnnotation}
-                className="flex items-center gap-3 w-full p-3 rounded-xl hover:bg-blue-50 hover:text-blue-600 text-slate-700 transition-colors border border-transparent hover:border-blue-100 text-left font-medium"
-              >
-                <div className="bg-blue-100 p-2 rounded-lg text-blue-600">
-                  <Type className="w-4 h-4" />
-                </div>
-                텍스트 추가하기
-              </button>
+            <div className="w-full md:w-64 bg-white border-b md:border-b-0 md:border-r border-slate-200 p-3 md:p-4 flex flex-row md:flex-col gap-2 md:gap-4 shadow-[1px_0_10px_rgba(0,0,0,0.02)] z-10 overflow-x-auto flex-shrink-0">
+              <h3 className="hidden md:block text-sm font-bold text-slate-400 uppercase tracking-wider mb-2">도구</h3>
+              
+              <div className="flex gap-2 md:gap-4 flex-row md:flex-col flex-nowrap w-full">
+                <button 
+                  onClick={addTextAnnotation}
+                  className="flex items-center justify-center md:justify-start gap-2 md:gap-3 flex-1 p-2 md:p-3 rounded-xl hover:bg-blue-50 hover:text-blue-600 text-slate-700 transition-colors border border-transparent hover:border-blue-100 text-center md:text-left font-medium text-sm md:text-base whitespace-nowrap"
+                >
+                  <div className="bg-blue-100 p-1.5 md:p-2 rounded-lg text-blue-600">
+                    <Type className="w-4 h-4" />
+                  </div>
+                  텍스트 추가
+                </button>
 
-              <button 
-                onClick={() => imageInputRef.current?.click()}
-                className="flex items-center gap-3 w-full p-3 rounded-xl hover:bg-blue-50 hover:text-blue-600 text-slate-700 transition-colors border border-transparent hover:border-blue-100 text-left font-medium"
-              >
-                <div className="bg-blue-100 p-2 rounded-lg text-blue-600">
-                  <ImageIcon className="w-4 h-4" />
-                </div>
-                이미지 추가하기
-              </button>
+                <button 
+                  onClick={() => imageInputRef.current?.click()}
+                  className="flex items-center justify-center md:justify-start gap-2 md:gap-3 flex-1 p-2 md:p-3 rounded-xl hover:bg-blue-50 hover:text-blue-600 text-slate-700 transition-colors border border-transparent hover:border-blue-100 text-center md:text-left font-medium text-sm md:text-base whitespace-nowrap"
+                >
+                  <div className="bg-blue-100 p-1.5 md:p-2 rounded-lg text-blue-600">
+                    <ImageIcon className="w-4 h-4" />
+                  </div>
+                  이미지 추가
+                </button>
+              </div>
+
               <input 
                 type="file" 
                 ref={imageInputRef} 
@@ -414,7 +418,7 @@ export default function App() {
                 className="hidden" 
               />
               
-              <div className="mt-auto bg-slate-50 p-4 rounded-xl text-sm text-slate-500">
+              <div className="hidden md:block mt-auto bg-slate-50 p-4 rounded-xl text-sm text-slate-500">
                 <p className="font-medium text-slate-700 mb-1">사용 방법</p>
                 <ul className="list-disc pl-4 space-y-1">
                   <li>PDF의 기존 텍스트를 <strong>클릭</strong>하여 수정할 수 있습니다.</li>
@@ -426,7 +430,9 @@ export default function App() {
               </div>
 
               {/* Google AdSense Banner Area */}
-              <AdBanner />
+              <div className="hidden md:block">
+                <AdBanner />
+              </div>
             </div>
             
             {/* Editor Area */}
