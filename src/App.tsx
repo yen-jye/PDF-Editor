@@ -6,7 +6,7 @@
 import { useState, useRef, useEffect } from 'react';
 import PdfEditor from './components/PdfEditor';
 import { Annotation, Whiteout, FONT_OPTIONS, ImageAnnotation } from './types';
-import { Upload, Download, Type, FileEdit, X, FileText, Image as ImageIcon } from 'lucide-react';
+import { Upload, Download, Type, FileEdit, X, FileText, Image as ImageIcon, Undo2 } from 'lucide-react';
 import { PDFDocument, rgb } from 'pdf-lib';
 import './pdf-init';
 
@@ -48,6 +48,83 @@ export default function App() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
 
+  // --- Undo History Logic ---
+  const [history, setHistory] = useState<{
+    annotations: Annotation[];
+    whiteouts: Whiteout[];
+    imageAnnotations: ImageAnnotation[];
+  }[]>([]);
+  const [historyIndex, setHistoryIndex] = useState(-1);
+  const isUndoing = useRef(false);
+  const isFirstRender = useRef(true);
+
+  // Save history when annotations change
+  useEffect(() => {
+    // Skip saving if this change was triggered by an undo action
+    if (isUndoing.current) {
+      isUndoing.current = false;
+      return;
+    }
+    // Skip first render
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+
+    setHistory(prev => {
+      // If we made a new change after undoing some steps, truncate the future history
+      const newHistory = prev.slice(0, historyIndex + 1);
+      
+      // Don't push if it's the exact same state (by reference or deep equal, but for now reference is okay since state updates usually mean new references)
+      const lastState = newHistory[newHistory.length - 1];
+      if (lastState && 
+          lastState.annotations === annotations && 
+          lastState.whiteouts === whiteouts && 
+          lastState.imageAnnotations === imageAnnotations) {
+        return prev;
+      }
+
+      newHistory.push({ annotations, whiteouts, imageAnnotations });
+      
+      // Keep only last 50 steps
+      if (newHistory.length > 50) {
+        newHistory.shift();
+      }
+      return newHistory;
+    });
+  }, [annotations, whiteouts, imageAnnotations, historyIndex]);
+
+  useEffect(() => {
+    setHistoryIndex(prev => prev >= 49 ? 49 : prev + 1);
+  }, [history]);
+
+  const undo = () => {
+    if (historyIndex > 0) {
+      isUndoing.current = true;
+      const newIndex = historyIndex - 1;
+      const prevState = history[newIndex];
+      setAnnotations(prevState.annotations);
+      setWhiteouts(prevState.whiteouts);
+      setImageAnnotations(prevState.imageAnnotations);
+      setHistoryIndex(newIndex);
+    }
+  };
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+        if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') {
+          return; // Let native undo work in text inputs
+        }
+        e.preventDefault();
+        undo();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [historyIndex, history]);
+  // --------------------------
+
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const uploadedFile = e.target.files?.[0];
     if (uploadedFile && uploadedFile.type === 'application/pdf') {
@@ -56,6 +133,9 @@ export default function App() {
       setAnnotations([]);
       setWhiteouts([]);
       setImageAnnotations([]);
+      setHistory([{ annotations: [], whiteouts: [], imageAnnotations: [] }]);
+      setHistoryIndex(0);
+      isUndoing.current = false;
     } else if (uploadedFile) {
       alert('PDF 파일만 업로드 가능합니다.');
     }
@@ -407,6 +487,27 @@ export default function App() {
                     <ImageIcon className="w-4 h-4" />
                   </div>
                   이미지 추가
+                </button>
+                
+                <button
+                  onClick={undo}
+                  disabled={historyIndex <= 0}
+                  className={`md:hidden flex items-center justify-center gap-1.5 p-2 rounded-xl transition-colors flex-shrink-0 ${historyIndex > 0 ? 'text-slate-600 hover:bg-slate-100 active:bg-slate-200' : 'text-slate-300'}`}
+                  title="되돌리기"
+                >
+                  <Undo2 className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="hidden md:flex mt-2 justify-end px-2">
+                <button
+                  onClick={undo}
+                  disabled={historyIndex <= 0}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${historyIndex > 0 ? 'text-slate-600 hover:bg-slate-100 hover:text-slate-900' : 'text-slate-300 cursor-not-allowed'}`}
+                  title="되돌리기 (Ctrl+Z)"
+                >
+                  <Undo2 className="w-4 h-4" />
+                  되돌리기
                 </button>
               </div>
 
