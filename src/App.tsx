@@ -6,7 +6,7 @@
 import { useState, useRef, useEffect } from 'react';
 import PdfEditor from './components/PdfEditor';
 import { Annotation, Whiteout, FONT_OPTIONS, ImageAnnotation } from './types';
-import { Upload, Download, Type, FileEdit, X, FileText, Image as ImageIcon, Undo2 } from 'lucide-react';
+import { Upload, Download, Type, FileEdit, X, FileText, Image as ImageIcon, Undo2, ShieldCheck } from 'lucide-react';
 import { PDFDocument, rgb } from 'pdf-lib';
 import './pdf-init';
 
@@ -456,6 +456,12 @@ export default function App() {
                 className="hidden" 
               />
             </div>
+            
+            <div className="mt-6 flex items-center justify-center gap-1.5 text-slate-500 bg-white/50 px-4 py-2 rounded-full text-xs font-medium border border-slate-200/50 shadow-sm">
+              <ShieldCheck className="w-4 h-4 text-green-500" />
+              업로드한 파일은 서버에 일체 저장 및 공유되지 않습니다
+            </div>
+
             <div className="mt-8 flex flex-col sm:flex-row flex-wrap justify-center items-center gap-3 sm:gap-8 text-slate-400 text-sm">
               <div className="flex items-center gap-2"><FileText className="w-4 h-4" /> 별도 설치 없음</div>
               <div className="flex items-center gap-2"><Type className="w-4 h-4" /> 자유로운 텍스트 추가</div>
@@ -551,6 +557,18 @@ export default function App() {
           </div>
         )}
       </main>
+
+      {/* Footer */}
+      <footer className="mt-auto py-6 px-4 flex flex-col items-center justify-center text-center border-t border-slate-200/50 bg-slate-50/50">
+        <a 
+          href="https://privacy.jyelabs.com" 
+          target="_blank" 
+          rel="noopener noreferrer"
+          className="text-[11px] text-slate-400 hover:text-slate-500 hover:underline transition-colors"
+        >
+          개인정보처리방침 및 이용약관
+        </a>
+      </footer>
     </div>
   );
 }
