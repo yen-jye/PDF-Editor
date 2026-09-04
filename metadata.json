@@ -1,0 +1,6 @@
+{
+  "name": "심플 PDF 에디터",
+  "description": "설치 없이 브라우저에서 바로 PDF 문서를 수정하고 텍스트를 추가할 수 있는 직관적인 PDF 에디터입니다.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
