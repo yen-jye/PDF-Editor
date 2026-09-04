@@ -1,8 +1,45 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import * as pdfjsLib from 'pdfjs-dist';
-import { Annotation, Whiteout, FONT_OPTIONS } from '../types';
+import { Annotation, Whiteout, FONT_OPTIONS, ImageAnnotation } from '../types';
 import Draggable from 'react-draggable';
-import { Trash2, GripHorizontal } from 'lucide-react';
+import { Trash2, GripHorizontal, Move, Image as ImageIcon, FlipHorizontal, FlipVertical, Wand2 } from 'lucide-react';
+import { ResizableBox } from 'react-resizable';
+import 'react-resizable/css/styles.css';
+
+// Add some custom styling to make the resize handles more visible
+const customStyles = `
+  .react-resizable-handle {
+    background-color: white !important;
+    border: 1px solid #94a3b8 !important;
+    border-radius: 50%;
+    width: 10px !important;
+    height: 10px !important;
+    padding: 0 !important;
+    background-image: none !important;
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+  .group:hover .react-resizable-handle {
+    opacity: 1;
+  }
+  .react-resizable-handle-se {
+    bottom: -5px !important;
+    right: -5px !important;
+    cursor: se-resize;
+  }
+  .react-resizable-handle-e {
+    top: 50% !important;
+    right: -5px !important;
+    margin-top: -5px;
+    cursor: e-resize;
+  }
+  .react-resizable-handle-s {
+    bottom: -5px !important;
+    left: 50% !important;
+    margin-left: -5px;
+    cursor: s-resize;
+  }
+`;
 
 interface PdfEditorProps {
   file: File;
@@ -10,10 +47,16 @@ interface PdfEditorProps {
   setAnnotations: React.Dispatch<React.SetStateAction<Annotation[]>>;
   whiteouts: Whiteout[];
   setWhiteouts: React.Dispatch<React.SetStateAction<Whiteout[]>>;
+  imageAnnotations: ImageAnnotation[];
+  setImageAnnotations: React.Dispatch<React.SetStateAction<ImageAnnotation[]>>;
   updateAnnotationPosition: (id: string, dx: number, dy: number) => void;
+  updateImageDataUrl: (id: string, dataUrl: string) => void;
 }
 
-export default function PdfEditor({ file, annotations, setAnnotations, whiteouts, setWhiteouts, updateAnnotationPosition }: PdfEditorProps) {
+export default function PdfEditor({ 
+  file, annotations, setAnnotations, whiteouts, setWhiteouts, 
+  imageAnnotations, setImageAnnotations, updateAnnotationPosition, updateImageDataUrl 
+}: PdfEditorProps) {
   const [pdfDoc, setPdfDoc] = useState<pdfjsLib.PDFDocumentProxy | null>(null);
   const [numPages, setNumPages] = useState<number>(0);
   const [passwordNeeded, setPasswordNeeded] = useState(false);
@@ -96,6 +139,7 @@ export default function PdfEditor({ file, annotations, setAnnotations, whiteouts
 
   return (
     <div className="flex-1 overflow-auto bg-gray-100 p-8 flex flex-col items-center gap-8">
+      <style>{customStyles}</style>
       {Array.from({ length: numPages }, (_, index) => (
         <PdfPage 
           key={index} 
@@ -105,7 +149,10 @@ export default function PdfEditor({ file, annotations, setAnnotations, whiteouts
           setAnnotations={setAnnotations}
           whiteouts={whiteouts.filter(w => w.pageIndex === index)}
           setWhiteouts={setWhiteouts}
+          imageAnnotations={imageAnnotations.filter(i => i.pageIndex === index)}
+          setImageAnnotations={setImageAnnotations}
           updateAnnotationPosition={updateAnnotationPosition}
+          updateImageDataUrl={updateImageDataUrl}
         />
       ))}
     </div>
@@ -119,7 +166,10 @@ interface PdfPageProps {
   setAnnotations: React.Dispatch<React.SetStateAction<Annotation[]>>;
   whiteouts: Whiteout[];
   setWhiteouts: React.Dispatch<React.SetStateAction<Whiteout[]>>;
+  imageAnnotations: ImageAnnotation[];
+  setImageAnnotations: React.Dispatch<React.SetStateAction<ImageAnnotation[]>>;
   updateAnnotationPosition: (id: string, dx: number, dy: number) => void;
+  updateImageDataUrl: (id: string, dataUrl: string) => void;
 }
 
 interface DraggableAnnotationProps {
@@ -171,33 +221,36 @@ function DraggableAnnotation({
       position={{ x: ann.x * pageDimensions.width, y: ann.y * pageDimensions.height }}
       onStop={(e, data) => onDragStop(ann.id, e, data)}
       handle=".drag-handle"
+      cancel=".no-drag, button, select, option"
     >
       <div ref={nodeRef} className="absolute top-0 left-0 group z-20 outline-none" tabIndex={-1}>
         <div className="relative pointer-events-auto outline-none">
           {/* CSS Grid trick to auto-size input to exactly fit its content */}
           <div 
-            className="grid items-center" 
+            className="grid items-center drag-handle cursor-move rounded hover:bg-slate-500/10 transition-colors" 
             style={{ 
               fontSize: `${ann.fontSize * 1.5}px`, 
               fontFamily: ann.fontFamily || 'sans-serif',
               fontWeight: ann.fontWeight || 'normal',
               textShadow: isBold ? '0.2px 0 0 currentColor, -0.2px 0 0 currentColor' : 'none',
-              lineHeight: 1
+              lineHeight: 1.1,
+              padding: '8px',
+              margin: '-8px'
             }}
           >
             <span 
               className="invisible whitespace-pre"
-              style={{ gridArea: '1 / 1', padding: '0 4px', minWidth: '50px' }}
+              style={{ gridArea: '1 / 1', padding: '0', minWidth: '50px' }}
             >
               {ann.text || '텍스트 입력'}
             </span>
             <input
               type="text"
               autoFocus
-              className="bg-transparent outline-none ring-0 whitespace-pre w-full h-full"
+              className="bg-transparent outline-none ring-0 whitespace-pre w-full h-full cursor-text no-drag"
               style={{ 
                 gridArea: '1 / 1',
-                padding: '0 4px',
+                padding: '0',
                 margin: 0,
                 color: ann.color,
                 fontFamily: 'inherit',
@@ -208,6 +261,7 @@ function DraggableAnnotation({
               value={ann.text}
               onChange={(e) => updateAnnotationText(ann.id, e.target.value)}
               onKeyDown={handleKeyDown}
+              onPointerDown={(e) => e.stopPropagation()}
               placeholder="텍스트 입력"
             />
           </div>
@@ -216,10 +270,10 @@ function DraggableAnnotation({
           
           <div className="absolute -top-12 left-0 bg-white shadow-lg border border-slate-200 rounded-lg px-2 py-1.5 flex gap-1.5 items-center opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity z-10 pointer-events-auto w-max">
             <div 
-              className="drag-handle cursor-grab active:cursor-grabbing p-1 text-slate-400 hover:bg-slate-100 rounded transition-colors outline-none"
+              className="drag-handle cursor-grab active:cursor-grabbing p-1.5 text-slate-500 hover:bg-slate-100 rounded transition-colors outline-none"
               title="마우스로 끌어서 이동 (방향키 미세조정: Alt+방향키)"
             >
-              <GripHorizontal size={14} />
+              <Move size={14} />
             </div>
 
             <div className="w-px h-4 bg-slate-200 mx-0.5"></div>
@@ -239,7 +293,7 @@ function DraggableAnnotation({
 
             <button
               className={`p-1 rounded text-xs font-bold w-6 h-6 flex items-center justify-center transition-colors ${isBold ? 'bg-blue-100 text-blue-700' : 'hover:bg-slate-100 text-slate-600'}`}
-              onClick={() => updateAnnotationFontWeight(ann.id, isBold ? 'normal' : 'bold')}
+              onClick={() => updateAnnotationFontWeight(ann.id, isBold ? '500' : 'bold')}
               onPointerDown={(e) => e.stopPropagation()}
               title="굵게 (B)"
             >
@@ -301,7 +355,156 @@ function DraggableAnnotation({
   );
 }
 
-function PdfPage({ pageIndex, pdfDoc, annotations, setAnnotations, whiteouts, setWhiteouts, updateAnnotationPosition }: PdfPageProps) {
+interface DraggableImageProps {
+  ann: ImageAnnotation;
+  pageDimensions: { width: number; height: number };
+  onDragStop: (id: string, e: any, data: any) => void;
+  updateImageSize: (id: string, newWidthPct: number, newHeightPct: number) => void;
+  updateImageDataUrl: (id: string, dataUrl: string) => void;
+  removeImageAnnotation: (id: string) => void;
+}
+
+function DraggableImage({ ann, pageDimensions, onDragStop, updateImageSize, updateImageDataUrl, removeImageAnnotation }: DraggableImageProps) {
+  const nodeRef = useRef<HTMLDivElement>(null);
+
+  const pixelWidth = ann.width * pageDimensions.width;
+  const pixelHeight = ann.height * pageDimensions.height;
+
+  const onResize = (e: React.SyntheticEvent, { size }: { size: { width: number, height: number } }) => {
+    e.stopPropagation();
+    updateImageSize(ann.id, size.width / pageDimensions.width, size.height / pageDimensions.height);
+  };
+
+  const processImage = (action: 'flipH' | 'flipV' | 'invert') => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      if (action === 'flipH') {
+        ctx.translate(canvas.width, 0);
+        ctx.scale(-1, 1);
+      } else if (action === 'flipV') {
+        ctx.translate(0, canvas.height);
+        ctx.scale(1, -1);
+      } else if (action === 'invert') {
+        ctx.filter = 'invert(100%)';
+      }
+
+      ctx.drawImage(img, 0, 0);
+      updateImageDataUrl(ann.id, canvas.toDataURL('image/png'));
+    };
+    img.src = ann.dataUrl;
+  };
+
+  return (
+    <Draggable
+      nodeRef={nodeRef}
+      bounds="parent"
+      position={{ x: ann.x * pageDimensions.width, y: ann.y * pageDimensions.height }}
+      onStop={(e, data) => onDragStop(ann.id, e, data)}
+      handle=".drag-handle"
+      cancel=".no-drag, button, select, option"
+    >
+      <div ref={nodeRef} className="absolute top-0 left-0 group z-20 outline-none" tabIndex={-1}>
+        <div className="relative pointer-events-auto outline-none">
+          <ResizableBox 
+            width={pixelWidth} 
+            height={pixelHeight} 
+            onResize={onResize}
+            minConstraints={[20, 20]}
+            maxConstraints={[pageDimensions.width, pageDimensions.height]}
+            resizeHandles={['se', 'e', 's']}
+            className="box-border"
+          >
+            <div className="w-full h-full relative drag-handle cursor-move" style={{ width: pixelWidth, height: pixelHeight }}>
+              <img 
+                src={ann.dataUrl} 
+                alt="annotation" 
+                className="w-full h-full object-fill pointer-events-none" 
+              />
+              <div className="absolute inset-0 border-2 border-transparent group-hover:border-blue-500 rounded -m-[2px] pointer-events-none transition-colors"></div>
+            </div>
+          </ResizableBox>
+
+          <div className="absolute -top-12 left-0 bg-white shadow-lg border border-slate-200 rounded-lg px-2 py-1.5 flex gap-1.5 items-center opacity-0 group-hover:opacity-100 transition-opacity z-10 pointer-events-auto w-max">
+            <div 
+              className="drag-handle cursor-grab active:cursor-grabbing p-1.5 text-slate-500 hover:bg-slate-100 rounded transition-colors outline-none"
+              title="마우스로 끌어서 이동"
+            >
+              <Move size={14} />
+            </div>
+
+            <div className="w-px h-4 bg-slate-200 mx-0.5"></div>
+
+            <div className="flex items-center gap-1 text-xs text-slate-500">
+              <input 
+                type="number"
+                className="w-12 border border-slate-200 rounded px-1 text-center outline-none focus:border-blue-400"
+                value={Math.round(pixelWidth)}
+                onChange={(e) => updateImageSize(ann.id, Number(e.target.value) / pageDimensions.width, ann.height)}
+                onPointerDown={(e) => e.stopPropagation()}
+                title="너비 (px)"
+              />
+              <span>x</span>
+              <input 
+                type="number"
+                className="w-12 border border-slate-200 rounded px-1 text-center outline-none focus:border-blue-400"
+                value={Math.round(pixelHeight)}
+                onChange={(e) => updateImageSize(ann.id, ann.width, Number(e.target.value) / pageDimensions.height)}
+                onPointerDown={(e) => e.stopPropagation()}
+                title="높이 (px)"
+              />
+            </div>
+
+            <div className="w-px h-4 bg-slate-200 mx-0.5"></div>
+
+            <button
+              className="p-1 rounded text-slate-600 hover:bg-slate-100 transition-colors"
+              onClick={() => processImage('flipH')}
+              onPointerDown={(e) => e.stopPropagation()}
+              title="좌우 반전"
+            >
+              <FlipHorizontal size={14} />
+            </button>
+            <button
+              className="p-1 rounded text-slate-600 hover:bg-slate-100 transition-colors"
+              onClick={() => processImage('flipV')}
+              onPointerDown={(e) => e.stopPropagation()}
+              title="상하 반전"
+            >
+              <FlipVertical size={14} />
+            </button>
+            <button
+              className="p-1 rounded text-slate-600 hover:bg-slate-100 transition-colors"
+              onClick={() => processImage('invert')}
+              onPointerDown={(e) => e.stopPropagation()}
+              title="색상 반전"
+            >
+              <Wand2 size={14} />
+            </button>
+          </div>
+
+          <button 
+            className="absolute -top-4 -right-4 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity z-20 pointer-events-auto"
+            onClick={() => removeImageAnnotation(ann.id)}
+            onPointerDown={(e) => e.stopPropagation()}
+          >
+            <Trash2 size={12} />
+          </button>
+        </div>
+      </div>
+    </Draggable>
+  );
+}
+
+function PdfPage({ 
+  pageIndex, pdfDoc, annotations, setAnnotations, whiteouts, setWhiteouts, 
+  imageAnnotations, setImageAnnotations, updateAnnotationPosition, updateImageDataUrl
+}: PdfPageProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [pageDimensions, setPageDimensions] = useState({ width: 0, height: 0 });
@@ -355,9 +558,8 @@ function PdfPage({ pageIndex, pdfDoc, annotations, setAnnotations, whiteouts, se
           const width = item.width * viewport.scale;
           
           let color = '#000000';
-          if (item.color) {
-            // pdf.js sometimes returns color as an array of RGB [r, g, b]
-            const rgb = Array.isArray(item.color) ? item.color : [0,0,0];
+          if (item.color && item.color.length >= 3) {
+            const rgb = item.color;
             color = `#${rgb[0].toString(16).padStart(2, '0')}${rgb[1].toString(16).padStart(2, '0')}${rgb[2].toString(16).padStart(2, '0')}`;
           }
 
@@ -368,21 +570,30 @@ function PdfPage({ pageIndex, pdfDoc, annotations, setAnnotations, whiteouts, se
           }
 
           let mappedValue = FONT_OPTIONS[0].value; // Default Noto Sans
-          if (rawFontFamily.includes('명조') || rawFontFamily.includes('myungjo') || rawFontFamily.includes('batang') || rawFontFamily.includes('serif')) {
-             mappedValue = FONT_OPTIONS[1].value;
-          } else if (rawFontFamily.includes('돋움') || rawFontFamily.includes('dotum')) {
+          if (rawFontFamily.includes('myeongjo') || rawFontFamily.includes('명조') || rawFontFamily.includes('serif') || rawFontFamily.includes('myungjo')) {
+             mappedValue = FONT_OPTIONS[1].value; // Noto Serif
+          } else if (rawFontFamily.includes('batang') || rawFontFamily.includes('바탕')) {
              mappedValue = FONT_OPTIONS[2].value;
-          } else if (rawFontFamily.includes('굴림') || rawFontFamily.includes('gulim')) {
+          } else if (rawFontFamily.includes('dotum') || rawFontFamily.includes('돋움')) {
              mappedValue = FONT_OPTIONS[3].value;
-          } else if (rawFontFamily.includes('arial') || rawFontFamily.includes('helvetica')) {
+          } else if (rawFontFamily.includes('gulim') || rawFontFamily.includes('굴림')) {
              mappedValue = FONT_OPTIONS[4].value;
+          } else if (rawFontFamily.includes('gungsuh') || rawFontFamily.includes('궁서')) {
+             mappedValue = FONT_OPTIONS[5].value;
+          } else if (rawFontFamily.includes('malgun') || rawFontFamily.includes('맑은')) {
+             mappedValue = FONT_OPTIONS[6].value;
+          } else if (rawFontFamily.includes('times')) {
+             mappedValue = FONT_OPTIONS[1].value;
           }
 
           let isBold = false;
+          let isThin = false;
           const styleStr = item.fontName && textContent.styles[item.fontName] ? JSON.stringify(textContent.styles[item.fontName]).toLowerCase() : '';
 
           if (fontNameLower.includes('bold') || fontNameLower.includes('bld') || fontNameLower.includes('bd') || styleStr.includes('bold') || styleStr.includes('black') || styleStr.includes('heavy') || styleStr.includes('w700') || styleStr.includes('w800')) {
             isBold = true;
+          } else if (fontNameLower.includes('thin') || fontNameLower.includes('light') || fontNameLower.includes('lt') || styleStr.includes('thin') || styleStr.includes('light') || styleStr.includes('w300') || styleStr.includes('w200') || styleStr.includes('w100')) {
+            isThin = true;
           }
           
           return {
@@ -398,7 +609,7 @@ function PdfPage({ pageIndex, pdfDoc, annotations, setAnnotations, whiteouts, se
             fontSize: Math.abs(item.transform[3]),
             color: color,
             fontFamily: mappedValue,
-            fontWeight: isBold ? 'bold' : 'normal'
+            fontWeight: isBold ? 'bold' : isThin ? 'normal' : '500'
           };
         });
         setTextItems(items);
@@ -421,14 +632,39 @@ function PdfPage({ pageIndex, pdfDoc, annotations, setAnnotations, whiteouts, se
   }, [pageIndex, pdfDoc]);
 
   const handleTextClick = (item: any) => {
+    // Attempt to sample background color from the canvas
+    let bgColor = '#ffffff';
+    const canvas = canvasRef.current;
+    if (canvas) {
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        // Sample a pixel just above the text bounding box (usually background color)
+        // item x, y are percentages. 
+        const px = Math.max(0, (item.x * canvas.width) - 2);
+        const py = Math.max(0, (item.y * canvas.height) - 4);
+        
+        try {
+          const pixelData = ctx.getImageData(px, py, 1, 1).data;
+          // Ensure it's not fully transparent
+          if (pixelData[3] > 0) {
+            bgColor = `#${pixelData[0].toString(16).padStart(2, '0')}${pixelData[1].toString(16).padStart(2, '0')}${pixelData[2].toString(16).padStart(2, '0')}`;
+          }
+        } catch (e) {
+          // Ignore canvas taint errors if any
+          console.error("Could not sample canvas color", e);
+        }
+      }
+    }
+
     // Hide the original text
     const newWhiteout: Whiteout = {
       id: item.id,
       pageIndex,
-      x: item.x,
-      y: item.y + (item.height * 0.05), // Shift whiteout slightly down
-      width: item.width,
-      height: item.height * 1.1, // Increase whiteout height to fully cover the text
+      x: item.x - (item.width * 0.02), // Expand slightly left
+      y: item.y - (item.height * 0.1), // Move up to cover ascenders
+      width: item.width * 1.04, // Make slightly wider
+      height: item.height * 1.3, // Make much taller to cover everything
+      color: bgColor
     };
     
     // Create an editable annotation on top
@@ -437,7 +673,7 @@ function PdfPage({ pageIndex, pdfDoc, annotations, setAnnotations, whiteouts, se
       pageIndex,
       text: item.str,
       x: item.x,
-      y: item.y + (item.height * 0.1), // slightly nudge down to visually align better
+      y: item.y, // Removed padding offset for exact match
       fontSize: item.fontSize,
       color: item.color || '#000000',
       fontFamily: item.fontFamily || FONT_OPTIONS[0].value,
@@ -494,6 +730,34 @@ function PdfPage({ pageIndex, pdfDoc, annotations, setAnnotations, whiteouts, se
     }));
   };
 
+  const onImageDragStop = (id: string, e: any, data: any) => {
+    if (!containerRef.current) return;
+    const { width, height } = containerRef.current.getBoundingClientRect();
+    setImageAnnotations(prev => prev.map(a => {
+      if (a.id === id) {
+        return {
+          ...a,
+          x: Math.max(0, Math.min(1, data.x / width)),
+          y: Math.max(0, Math.min(1, data.y / height))
+        };
+      }
+      return a;
+    }));
+  };
+
+  const updateImageSize = (id: string, newWidthPct: number, newHeightPct: number) => {
+    setImageAnnotations(prev => prev.map(a => {
+      if (a.id === id) {
+        return { ...a, width: newWidthPct, height: newHeightPct };
+      }
+      return a;
+    }));
+  };
+
+  const removeImageAnnotation = (id: string) => {
+    setImageAnnotations(prev => prev.filter(a => a.id !== id));
+  };
+
   return (
     <div 
       ref={containerRef} 
@@ -506,8 +770,9 @@ function PdfPage({ pageIndex, pdfDoc, annotations, setAnnotations, whiteouts, se
       {pageDimensions.width > 0 && whiteouts.map(w => (
         <div 
           key={w.id}
-          className="absolute bg-white"
+          className="absolute"
           style={{
+            backgroundColor: w.color || '#ffffff',
             left: `${w.x * 100}%`,
             top: `${w.y * 100}%`,
             width: `${w.width * 100}%`,
@@ -546,6 +811,19 @@ function PdfPage({ pageIndex, pdfDoc, annotations, setAnnotations, whiteouts, se
           updateAnnotationColor={updateAnnotationColor}
           updateAnnotationPosition={updateAnnotationPosition}
           removeAnnotation={removeAnnotation}
+        />
+      ))}
+
+      {/* Image annotations */}
+      {pageDimensions.width > 0 && imageAnnotations.map(ann => (
+        <DraggableImage
+          key={ann.id}
+          ann={ann}
+          pageDimensions={pageDimensions}
+          onDragStop={onImageDragStop}
+          updateImageSize={updateImageSize}
+          updateImageDataUrl={updateImageDataUrl}
+          removeImageAnnotation={removeImageAnnotation}
         />
       ))}
     </div>

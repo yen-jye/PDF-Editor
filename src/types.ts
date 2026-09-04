@@ -10,6 +10,16 @@ export interface Annotation {
   fontWeight?: string;
 }
 
+export interface ImageAnnotation {
+  id: string;
+  pageIndex: number;
+  dataUrl: string;
+  x: number; // percentage 0-1
+  y: number; // percentage 0-1
+  width: number; // percentage 0-1
+  height: number; // percentage 0-1
+}
+
 export interface Whiteout {
   id: string;
   pageIndex: number;
@@ -17,6 +27,7 @@ export interface Whiteout {
   y: number; // percentage 0-1
   width: number; // percentage 0-1
   height: number; // percentage 0-1
+  color?: string; // background color
 }
 
 export const FONT_OPTIONS = [

@@ -3,19 +3,50 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import PdfEditor from './components/PdfEditor';
-import { Annotation } from './types';
-import { Upload, Download, Type, FileEdit, X, FileText } from 'lucide-react';
+import { Annotation, Whiteout, FONT_OPTIONS, ImageAnnotation } from './types';
+import { Upload, Download, Type, FileEdit, X, FileText, Image as ImageIcon } from 'lucide-react';
 import { PDFDocument, rgb } from 'pdf-lib';
 import './pdf-init';
+
+function AdBanner() {
+  useEffect(() => {
+    try {
+      // @ts-ignore
+      const adsbygoogle = window.adsbygoogle || [];
+      // Only push if there's an uninitialized ad slot
+      const uninitializedAds = document.querySelectorAll('ins.adsbygoogle:not([data-ad-status="unfilled"]):not([data-ad-status="done"])');
+      if (uninitializedAds.length > 0) {
+        adsbygoogle.push({});
+      }
+    } catch (e: any) {
+      // Suppress the specific "already have ads" error which happens in React Strict Mode
+      if (e.message && e.message.includes('already have ads')) return;
+      console.error("AdSense error", e);
+    }
+  }, []);
+
+  return (
+    <div className="mt-4 w-full h-[250px] bg-slate-50 border border-slate-100 rounded-xl overflow-hidden flex items-center justify-center">
+      <ins className="adsbygoogle"
+        style={{ display: 'block', width: '100%', height: '100%' }}
+        data-ad-client="ca-pub-9679283710951418"
+        data-ad-slot="auto"
+        data-ad-format="auto"
+        data-full-width-responsive="true"></ins>
+    </div>
+  );
+}
 
 export default function App() {
   const [file, setFile] = useState<File | null>(null);
   const [fileName, setFileName] = useState<string>('edited_document');
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
   const [whiteouts, setWhiteouts] = useState<Whiteout[]>([]);
+  const [imageAnnotations, setImageAnnotations] = useState<ImageAnnotation[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const uploadedFile = e.target.files?.[0];
@@ -24,9 +55,40 @@ export default function App() {
       setFileName(uploadedFile.name.replace(/\.pdf$/i, '') + '_edited');
       setAnnotations([]);
       setWhiteouts([]);
+      setImageAnnotations([]);
     } else if (uploadedFile) {
       alert('PDF 파일만 업로드 가능합니다.');
     }
+  };
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const uploadedFile = e.target.files?.[0];
+    if (uploadedFile && uploadedFile.type.startsWith('image/')) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const dataUrl = event.target?.result as string;
+        
+        // We need original dimensions to maintain aspect ratio, but we can set defaults and let the editor component figure it out.
+        // For simplicity, let's create an Image object to get dimensions
+        const img = new Image();
+        img.onload = () => {
+          const newImage: ImageAnnotation = {
+            id: crypto.randomUUID(),
+            pageIndex: 0,
+            dataUrl,
+            x: 0.1,
+            y: 0.1,
+            width: 0.3, // default 30% of page width
+            height: 0.3 * (img.height / img.width), // proportional height
+          };
+          setImageAnnotations([...imageAnnotations, newImage]);
+        };
+        img.src = dataUrl;
+      };
+      reader.readAsDataURL(uploadedFile);
+    }
+    // reset input
+    if (imageInputRef.current) imageInputRef.current.value = '';
   };
 
   const addTextAnnotation = () => {
@@ -40,7 +102,7 @@ export default function App() {
       fontSize: 16,
       color: '#000000',
       fontFamily: FONT_OPTIONS[0].value,
-      fontWeight: 'normal',
+      fontWeight: '500',
     };
     setAnnotations([...annotations, newAnnotation]);
   };
@@ -48,6 +110,12 @@ export default function App() {
   const updateAnnotationPosition = (id: string, dx: number, dy: number) => {
     setAnnotations(prev => prev.map(a => 
       a.id === id ? { ...a, x: Math.max(0, Math.min(1, a.x + dx)), y: Math.max(0, Math.min(1, a.y + dy)) } : a
+    ));
+  };
+
+  const updateImageDataUrl = (id: string, dataUrl: string) => {
+    setImageAnnotations(prev => prev.map(a => 
+      a.id === id ? { ...a, dataUrl } : a
     ));
   };
 
@@ -179,6 +247,36 @@ export default function App() {
         }
       });
 
+      // Embed and draw images
+      for (const imgAnn of imageAnnotations) {
+        if (imgAnn.pageIndex < pages.length) {
+          const page = pages[imgAnn.pageIndex];
+          const { width, height } = page.getSize();
+          
+          let pdfImage;
+          if (imgAnn.dataUrl.startsWith('data:image/jpeg')) {
+            pdfImage = await pdfDoc.embedJpg(imgAnn.dataUrl);
+          } else if (imgAnn.dataUrl.startsWith('data:image/png')) {
+            pdfImage = await pdfDoc.embedPng(imgAnn.dataUrl);
+          } else {
+            console.warn('Unsupported image type:', imgAnn.dataUrl.substring(0, 30));
+            continue;
+          }
+
+          const imgW = imgAnn.width * width;
+          const imgH = imgAnn.height * height;
+          const imgX = imgAnn.x * width;
+          const imgY = height - (imgAnn.y * height) - imgH;
+
+          page.drawImage(pdfImage, {
+            x: imgX,
+            y: imgY,
+            width: imgW,
+            height: imgH,
+          });
+        }
+      }
+
       const pdfBytes = await pdfDoc.save();
       const blob = new Blob([pdfBytes], { type: 'application/pdf' });
       const url = URL.createObjectURL(blob);
@@ -199,9 +297,27 @@ export default function App() {
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans text-slate-900">
       {/* Header */}
       <header className="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between sticky top-0 z-10">
-        <div className="flex items-center gap-2 text-blue-600">
-          <FileEdit className="w-6 h-6" />
-          <h1 className="text-xl font-bold tracking-tight">심플 PDF 에디터</h1>
+        <div className="flex items-center gap-5">
+          <div className="flex items-center gap-2 text-blue-600">
+            <FileEdit className="w-6 h-6" />
+            <h1 className="text-xl font-bold tracking-tight">심플 PDF 에디터</h1>
+          </div>
+          
+          <div className="h-5 w-px bg-slate-200"></div>
+
+          <a 
+            href="https://www.jyelabs.com" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="flex items-center gap-1.5 opacity-70 hover:opacity-100 transition-opacity"
+            title="JYE LABS 홈페이지 방문"
+          >
+            <span className="text-[10px] font-bold text-slate-400 tracking-widest mt-0.5">POWERED BY</span>
+            <div className="flex items-center">
+              <span className="text-sm font-black tracking-tighter text-slate-800">JYE</span>
+              <span className="text-sm font-bold tracking-tight text-blue-600">LABS</span>
+            </div>
+          </a>
         </div>
         
         {file && (
@@ -280,16 +396,37 @@ export default function App() {
                 </div>
                 텍스트 추가하기
               </button>
+
+              <button 
+                onClick={() => imageInputRef.current?.click()}
+                className="flex items-center gap-3 w-full p-3 rounded-xl hover:bg-blue-50 hover:text-blue-600 text-slate-700 transition-colors border border-transparent hover:border-blue-100 text-left font-medium"
+              >
+                <div className="bg-blue-100 p-2 rounded-lg text-blue-600">
+                  <ImageIcon className="w-4 h-4" />
+                </div>
+                이미지 추가하기
+              </button>
+              <input 
+                type="file" 
+                ref={imageInputRef} 
+                onChange={handleImageUpload} 
+                accept="image/jpeg, image/png"
+                className="hidden" 
+              />
               
               <div className="mt-auto bg-slate-50 p-4 rounded-xl text-sm text-slate-500">
                 <p className="font-medium text-slate-700 mb-1">사용 방법</p>
                 <ul className="list-disc pl-4 space-y-1">
                   <li>PDF의 기존 텍스트를 <strong>클릭</strong>하여 수정할 수 있습니다.</li>
-                  <li><strong>텍스트 추가</strong> 버튼으로 새 텍스트를 입력하세요.</li>
+                  <li><strong>텍스트/이미지 추가</strong> 버튼으로 내용을 추가하세요.</li>
                   <li>나타난 상자를 드래그하여 이동하세요.</li>
+                  <li>이미지는 모서리를 드래그하거나 치수를 입력해 크기를 조절할 수 있습니다.</li>
                   <li>우측 상단 파일명을 적고 다운로드 하세요.</li>
                 </ul>
               </div>
+
+              {/* Google AdSense Banner Area */}
+              <AdBanner />
             </div>
             
             {/* Editor Area */}
@@ -299,7 +436,10 @@ export default function App() {
               setAnnotations={setAnnotations} 
               whiteouts={whiteouts}
               setWhiteouts={setWhiteouts}
+              imageAnnotations={imageAnnotations}
+              setImageAnnotations={setImageAnnotations}
               updateAnnotationPosition={updateAnnotationPosition}
+              updateImageDataUrl={updateImageDataUrl}
             />
           </div>
         )}
