@@ -376,7 +376,7 @@ export default function App() {
                 className="hidden" 
               />
             </div>
-            <div className="mt-8 flex gap-8 text-slate-400 text-sm">
+            <div className="mt-8 flex flex-col sm:flex-row flex-wrap justify-center items-center gap-3 sm:gap-8 text-slate-400 text-sm">
               <div className="flex items-center gap-2"><FileText className="w-4 h-4" /> 별도 설치 없음</div>
               <div className="flex items-center gap-2"><Type className="w-4 h-4" /> 자유로운 텍스트 추가</div>
               <div className="flex items-center gap-2"><Download className="w-4 h-4" /> 즉시 다운로드</div>

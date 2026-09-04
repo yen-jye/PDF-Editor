@@ -2,7 +2,7 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import * as pdfjsLib from 'pdfjs-dist';
 import { Annotation, Whiteout, FONT_OPTIONS, ImageAnnotation } from '../types';
 import Draggable from 'react-draggable';
-import { Trash2, GripHorizontal, Move, Image as ImageIcon, FlipHorizontal, FlipVertical, Wand2 } from 'lucide-react';
+import { Trash2, GripHorizontal, Move, Image as ImageIcon, FlipHorizontal, FlipVertical, Wand2, ZoomIn, ZoomOut, Maximize } from 'lucide-react';
 import { ResizableBox } from 'react-resizable';
 import 'react-resizable/css/styles.css';
 
@@ -63,6 +63,13 @@ export default function PdfEditor({
   const [password, setPassword] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+  
+  // Default to a smaller scale on mobile (e.g. max width of 100vw), or simply use 1.0/1.5
+  const [scale, setScale] = useState(typeof window !== 'undefined' && window.innerWidth < 768 ? 0.75 : 1.25);
+
+  const handleZoomIn = () => setScale(s => Math.min(3.0, s + 0.25));
+  const handleZoomOut = () => setScale(s => Math.max(0.25, s - 0.25));
+  const handleZoomReset = () => setScale(typeof window !== 'undefined' && window.innerWidth < 768 ? 0.75 : 1.25);
 
   const loadPdf = async (pwd?: string) => {
     try {
@@ -138,14 +145,31 @@ export default function PdfEditor({
   }
 
   return (
-    <div className="flex-1 overflow-auto bg-gray-100 p-2 md:p-8">
+    <div className="flex-1 overflow-auto bg-gray-100 p-2 md:p-8 relative">
       <style>{customStyles}</style>
-      <div className="flex flex-col gap-4 md:gap-8 w-max mx-auto">
+      
+      {/* Zoom Controls */}
+      <div className="sticky top-0 right-0 z-50 flex justify-end p-2 md:p-4 mb-[-40px] md:mb-[-60px] pointer-events-none">
+        <div className="bg-white rounded-xl shadow-md border border-slate-200 p-1 flex items-center gap-1 pointer-events-auto">
+          <button onClick={handleZoomOut} className="p-2 hover:bg-slate-100 rounded-lg text-slate-600 transition-colors" title="축소">
+            <ZoomOut className="w-4 h-4 md:w-5 md:h-5" />
+          </button>
+          <button onClick={handleZoomReset} className="px-2 md:px-3 text-xs md:text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg h-full transition-colors" title="기본 크기">
+            {Math.round(scale * 100)}%
+          </button>
+          <button onClick={handleZoomIn} className="p-2 hover:bg-slate-100 rounded-lg text-slate-600 transition-colors" title="확대">
+            <ZoomIn className="w-4 h-4 md:w-5 md:h-5" />
+          </button>
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-4 md:gap-8 w-max mx-auto mt-4 md:mt-8">
         {Array.from({ length: numPages }, (_, index) => (
           <PdfPage 
             key={index} 
             pageIndex={index} 
             pdfDoc={pdfDoc} 
+            scale={scale}
             annotations={annotations.filter(a => a.pageIndex === index)}
             setAnnotations={setAnnotations}
             whiteouts={whiteouts.filter(w => w.pageIndex === index)}
@@ -164,6 +188,7 @@ export default function PdfEditor({
 interface PdfPageProps {
   pageIndex: number;
   pdfDoc: pdfjsLib.PDFDocumentProxy;
+  scale: number;
   annotations: Annotation[];
   setAnnotations: React.Dispatch<React.SetStateAction<Annotation[]>>;
   whiteouts: Whiteout[];
@@ -177,6 +202,7 @@ interface PdfPageProps {
 interface DraggableAnnotationProps {
   ann: Annotation;
   pageDimensions: { width: number; height: number };
+  scale: number;
   onDragStop: (id: string, e: any, data: any) => void;
   updateAnnotationText: (id: string, newText: string) => void;
   updateAnnotationFontFamily: (id: string, newFontFamily: string) => void;
@@ -188,7 +214,7 @@ interface DraggableAnnotationProps {
 }
 
 function DraggableAnnotation({ 
-  ann, pageDimensions, onDragStop, updateAnnotationText, 
+  ann, pageDimensions, scale, onDragStop, updateAnnotationText, 
   updateAnnotationFontFamily, updateAnnotationFontWeight, 
   updateAnnotationFontSize, updateAnnotationColor,
   updateAnnotationPosition, removeAnnotation 
@@ -231,7 +257,7 @@ function DraggableAnnotation({
           <div 
             className="grid items-center drag-handle cursor-move rounded hover:bg-slate-500/10 transition-colors" 
             style={{ 
-              fontSize: `${ann.fontSize * 1.5}px`, 
+              fontSize: `${ann.fontSize * scale}px`, 
               fontFamily: ann.fontFamily || 'sans-serif',
               fontWeight: ann.fontWeight || 'normal',
               textShadow: isBold ? '0.2px 0 0 currentColor, -0.2px 0 0 currentColor' : 'none',
@@ -504,7 +530,7 @@ function DraggableImage({ ann, pageDimensions, onDragStop, updateImageSize, upda
 }
 
 function PdfPage({ 
-  pageIndex, pdfDoc, annotations, setAnnotations, whiteouts, setWhiteouts, 
+  pageIndex, pdfDoc, scale, annotations, setAnnotations, whiteouts, setWhiteouts, 
   imageAnnotations, setImageAnnotations, updateAnnotationPosition, updateImageDataUrl
 }: PdfPageProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -522,7 +548,7 @@ function PdfPage({
         page = await pdfDoc.getPage(pageIndex + 1);
         if (isCancelled) return;
         
-        const viewport = page.getViewport({ scale: 1.5 });
+        const viewport = page.getViewport({ scale });
         
         const canvas = canvasRef.current;
         if (!canvas) return;
@@ -805,6 +831,7 @@ function PdfPage({
           key={ann.id}
           ann={ann}
           pageDimensions={pageDimensions}
+          scale={scale}
           onDragStop={onDragStop}
           updateAnnotationText={updateAnnotationText}
           updateAnnotationFontFamily={updateAnnotationFontFamily}
